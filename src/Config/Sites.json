@@ -1,0 +1,13 @@
+{
+  "sites": [
+    {
+      "Key": "github",
+      "Name": "GitHub",
+      "Template": "https://github.com/{identifier}",
+      "CheckType": "StatusCode",
+      "MatchedCodes": [ 200 ],
+      "UnmatchedCodes": [ 404 ],
+      "Tags": [ "code", "platform" ]
+    }
+  ]
+}

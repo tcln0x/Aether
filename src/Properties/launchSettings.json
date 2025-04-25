@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Aether": {
+      "commandName": "Project",
+      "commandLineArgs": "user tcln0x"
+    }
+  }
+}

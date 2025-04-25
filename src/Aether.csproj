@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+	<Authors>tcln0x</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove=".gitignore" />
+    <None Remove="LICENSE" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<None Include="Config\Sites.json">
+		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	</None>
+  </ItemGroup>
+
+
+	<ItemGroup>
+    <PackageReference Include="McMaster.Extensions.CommandLineUtils" Version="4.1.1" />
+    <PackageReference Include="Spectre.Console" Version="0.50.0" />
+  </ItemGroup>
+</Project>
