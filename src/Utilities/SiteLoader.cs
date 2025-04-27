@@ -1,31 +1,40 @@
-﻿using Aether.Models;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.IO;
 using System.Text.Json;
-using System.Threading.Tasks;
+using System.Text.Json.Serialization;
+using Aether.Models;
 
 namespace Aether.Utilities
 {
-    public static class SiteLoader
+    public class SiteLoader
     {
-        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true,
-            ReadCommentHandling = JsonCommentHandling.Skip,
-            AllowTrailingCommas = true
-        };
+        private static readonly JsonSerializerOptions _jsonOptions;
 
-        public static IEnumerable<Definition> Load(string path)
+        static SiteLoader()
+        {
+            _jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                ReadCommentHandling = JsonCommentHandling.Skip,
+                AllowTrailingCommas = true,
+                Converters =
+                {
+                    new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: true)
+                }
+            };
+        }
+
+        public IEnumerable<Definition> Load(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException("Config file path must be provided", nameof(path));
 
             if (!File.Exists(path))
-                throw new FileNotFoundException("Sites.json not found", path);
+                throw new FileNotFoundException("sites.json not found", path);
 
             var json = File.ReadAllText(path);
+
             var config = JsonSerializer.Deserialize<SiteConfig>(json, _jsonOptions);
 
             if (config?.Sites == null)
