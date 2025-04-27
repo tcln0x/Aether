@@ -1,8 +1,16 @@
-﻿using Aether.Factories;
-using Aether.Formatters;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Threading.Tasks;
+using McMaster.Extensions.CommandLineUtils;
+using Spectre.Console;
 using Aether.Models;
 using Aether.Utilities;
-using McMaster.Extensions.CommandLineUtils;
+using Aether.Formatters;
+using Aether.Strategies;
+using Aether.Factories;
 
 namespace Aether.Commands
 {
@@ -10,22 +18,37 @@ namespace Aether.Commands
     {
         public static void Configure(CommandLineApplication app)
         {
-            var cmd = app.Command("user", command =>
+            app.Command("user", command =>
             {
-                /* Shortened alias */
                 command.AddName("u");
+                command.AddName("username");
+                command.Description = "Check a username (or multiple via --file) across configured sites.";
 
-                command.Description = "Check an username across multiple sites.";
+                var identifierArg = command.Argument("identifier", "Identifier to check");
+                var fileOption = command.Option(
+                    "-f|--file <FILE>",
+                    "Path to newline-separated list of identifiers",
+                    CommandOptionType.SingleValue);
 
-                var identifierArg = command.Argument("identifier", "The username to check.").IsRequired();
+                var parallelOption = command.Option(
+                    "-p|--parallelism <N>",
+                    "Max concurrent requests per identifier (default 50)",
+                    CommandOptionType.SingleValue);
 
-                command.OnExecuteAsync(async (cancellationToken) =>
+                var allOption = command.Option(
+                    "-a|--all",
+                    "Show non-found results (default hides)",
+                    CommandOptionType.NoValue);
+
+                command.OnExecuteAsync(async ct =>
                 {
-                    IEnumerable<Definition> definitions;
+                    string cfg = Path.Combine(AppContext.BaseDirectory, "Config", "Sites.json");
+                    IEnumerable<Definition> defs;
 
+                    var loader = new SiteLoader();
                     try
                     {
-                        definitions = SiteLoader.Load("Config/Sites.json");
+                        defs = loader.Load(Path.Join("Config", "Sites.json"));
                     }
                     catch (Exception ex)
                     {
@@ -33,18 +56,66 @@ namespace Aether.Commands
                         return 1;
                     }
 
-                    using var http = HttpClientFactory.Create();
-                    var strategies = StrategyFactory.CreateDefaultStrategies();
-
-                    var total = definitions.Count();
-                    var results = new List<Result>();
-
-                    await foreach (var result in AsyncExecutor.ExecuteAsync(definitions, identifierArg.Value, strategies, http, maxConcurrency: 50))
+                    List<string> ids;
+                    if (fileOption.HasValue())
                     {
-                        results.Add(result);
+                        var path = fileOption.Value();
+                        if (!File.Exists(path)) { Console.Error.WriteLine($"File not found: {path}"); return 1; }
+                        ids = File.ReadLines(path).Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+                        if (!ids.Any()) { Console.Error.WriteLine("No identifiers in file."); return 1; }
+                    }
+                    else
+                    {
+                        if (string.IsNullOrWhiteSpace(identifierArg.Value))
+                        {
+                            Console.Error.WriteLine("Provide <identifier> or use --file."); return 1;
+                        }
+                        ids = new List<string> { identifierArg.Value };
                     }
 
-                    SpectreFormatter.Format(results);
+                    int max = 50;
+                    if (parallelOption.HasValue() && int.TryParse(parallelOption.Value(), out var px) && px > 0) max = px;
+
+                    using var http = HttpClientFactory.Create();
+                    var strategies = StrategyFactory.CreateDefaultStrategies();
+                    bool showAll = allOption.HasValue();
+
+                    var table = new Table().Border(TableBorder.Rounded)
+                        .AddColumn("Identifier").AddColumn("Site").AddColumn("Found").AddColumn("URL");
+
+                    int total = ids.Count * defs.Count();
+                    int done = 0;
+
+                    await AnsiConsole.Live(new Rows(table, new Markup("")))
+                        .AutoClear(false)
+                        .Overflow(VerticalOverflow.Visible)
+                        .Cropping(VerticalOverflowCropping.Bottom)
+                        .StartAsync(async ctx =>
+                        {
+                            var tasks = ids.Select(id => Task.Run(async () =>
+                            {
+                                await foreach (var res in AsyncExecutor.ExecuteAsync(defs, id, strategies, http, max))
+                                {
+                                    if (res.Exists || showAll)
+                                    {
+                                        table.AddRow(
+                                            $"[yellow]{id}[/]",
+                                            res.SiteName,
+                                            res.Exists ? "[green]Yes[/]" : "[red]No[/]",
+                                            $"[blue]{res.Url}[/]"
+                                        );
+                                    }
+                                    done++;
+                                    ctx.UpdateTarget(new Rows(
+                                        table,
+                                        new Markup($"[grey]Progress: {done}/{total}[/]")));
+                                    ctx.Refresh();
+                                }
+                            }, ct)).ToList();
+
+                            await Task.WhenAll(tasks);
+                        });
+
                     return 0;
                 });
             });
