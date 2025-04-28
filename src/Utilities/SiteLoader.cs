@@ -7,25 +7,20 @@ using Aether.Models;
 
 namespace Aether.Utilities
 {
-    public class SiteLoader
+    public static class SiteLoader
     {
-        private static readonly JsonSerializerOptions _jsonOptions;
-
-        static SiteLoader()
+        private static readonly JsonSerializerOptions _jsonOptions = new()
         {
-            _jsonOptions = new JsonSerializerOptions
+            PropertyNameCaseInsensitive = true,
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true,
+            Converters =
             {
-                PropertyNameCaseInsensitive = true,
-                ReadCommentHandling = JsonCommentHandling.Skip,
-                AllowTrailingCommas = true,
-                Converters =
-                {
-                    new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: true)
-                }
-            };
-        }
+                new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: true)
+            }
+        };
 
-        public IEnumerable<Definition> Load(string path)
+        public static IEnumerable<Definition> Load(string? path)
         {
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException("Config file path must be provided", nameof(path));

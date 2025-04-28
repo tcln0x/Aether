@@ -4,11 +4,11 @@ namespace Aether.Models
 {
     public class Definition
     {
-        public string Key { get; set; }
+        public required string Key { get; set; }
 
-        public string Name { get; set; }
+        public required string Name { get; set; }
 
-        public string UrlTemplate { get; set; }
+        public required string UrlTemplate { get; set; }
 
         public string? UrlMain { get; set; }
 
